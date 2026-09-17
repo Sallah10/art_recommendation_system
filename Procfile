@@ -1,0 +1,1 @@
+web: gunicorn art_recommendation_system.wsgi --log-file -
