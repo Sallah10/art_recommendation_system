@@ -1,107 +1,84 @@
-from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from .models import Type_User
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, logout, authenticate
-from django.core.mail import send_mail, EmailMessage, send_mass_mail, EmailMultiAlternatives
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 
-# Create your views here.
-def login_user(request):
-	if request.method == 'POST':
-		print('post method')
-		email = request.POST['email']
-		password = request.POST['password']
-		user = User.objects.filter(email=email).exists()
-		print(user)
-		if user is True:
-			get_user = User.objects.get(email=email)
-			username = get_user.username
-
-			#if not user.check_password():
-			#	messages.success(request, ('wrong password'))
-			#	return redirect(request.META.get("HTTP_REFERER"))
-			
-			user_ = authenticate(request, username=username, password=password)
-			if user_ is not None:
-				login(request, user_)
-				print('Logged in')
-				x = str(request.user.id)
-
-				return redirect('reserve_index')
-			else:
-				print('incorrect password')
-				messages.success(request, ('Incorrect Username or Password.'))
-				return redirect(request.META.get("HTTP_REFERER"))
-		else:
-			messages.success(request, ('Account does not exists, kindly create one.'))
-			print('account does not exist')
-			#return redirect('register')
-	return render(request, 'login.html', {})
+def serialize_user(user):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "name": user.first_name,
+    }
 
 
-def sign_up(request):
-	artiste = Type_User.objects.get(id=1)
-	print(artiste.name)
-	user = Type_User.objects.get(id=2)
-	print(user.name)
-	if request.method == 'POST':
-		first_name = request.POST['username']
-		username = first_name
-		email = request.POST['email']
-		password1 = request.POST['password1']
-		password2 = request.POST['password2']
-		type_user = request.POST['reg_as']
-		print(type_user)
-		if password1==password2:
-			if User.objects.filter(username=username).exists():
-				a = User.objects.filter(username=username).first()
-				return render(request, 'register_user.html', {'first_name':first_name, 'username':username, 'email':email, 'a':a})
-			elif User.objects.filter(email=email).exists():
-				b = User.objects.filter(email=email).exists()
-				return render(request, 'register_user.html', {'first_name':first_name, 'username':username, 'email':email, 'b':b})
-			else:
-				if type_user == 'artist':
-					user = User.objects.create_user(first_name=first_name, last_name="Null", username=username, email=email, password=password2)
-					user.save()
-					get_user = User.objects.get(username=username)
-					get_user.profile.user_type = artiste
-					get_user.profile.save()
-					print(f'Registration successsful - {username}')
-					get_user = User.objects.get(username=username)
-					user=authenticate(username=username, password=password2)
-					login(request, user)
-					return redirect(request.META.get("HTTP_REFERER"))
-				elif type_user == 'user':
-					if type_user == 'artist':
-						user = User.objects.create_user(first_name=first_name, username=username, email=email, password=password2)
-						user.save()
-						get_user = User.objects.get(username=username)
-						get_user.profile.user_type = user
-						get_user.profile.save()
-						print(f'Registration successsful - {username}')
-						get_user = User.objects.get(username=username)
-						user=authenticate(username=username, password=password2)
-						login(request, user)
-						return redirect(request.META.get("HTTP_REFERER"))
-		else:
-			messages.success(request, ('Password does not match, try again'))
-			c = password1==password2
-			return render(request, 'register_user.html', {'first_name':first_name, 'username':username, 'email':email, 'c':c})
-	return render(request, 'register_user.html', {})
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        name = (request.data.get("name") or "").strip()
+        email = (request.data.get("email") or "").strip().lower()
+        password = request.data.get("password") or ""
+
+        if not email or not password:
+            return Response(
+                {"detail": "email and password are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if User.objects.filter(email__iexact=email).exists():
+            return Response(
+                {"detail": "An account with that email already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            validate_password(password)
+        except ValidationError as error:
+            return Response({"detail": error.messages}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                first_name=name or email.split("@")[0],
+                password=password,
+            )
+        login(request, user)
+        return Response(serialize_user(user), status=status.HTTP_201_CREATED)
 
 
-def logout_user(request):
-	logout(request)
-	return redirect('index')
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = (request.data.get("email") or "").strip().lower()
+        password = request.data.get("password") or ""
+        user = authenticate(request, username=email, password=password)
+        if user is None:
+            return Response(
+                {"detail": "Incorrect email or password."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        login(request, user)
+        return Response(serialize_user(user))
 
 
-def change_status(request, pk):
-	artiste = Type_User.objects.get(id=1)
-	user = request.user
-	get_user = User.objects.get(id=pk)
-	get_user.profile.user_type = artiste
-	get_user.profile.save()
-	print(f'status changed')
-	return redirect(request.META.get("HTTP_REFERER"))
+class LogoutView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        logout(request)
+        return Response({"detail": "Signed out."})
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(serialize_user(request.user))
