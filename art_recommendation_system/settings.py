@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -135,6 +136,7 @@ CORS_ALLOWED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+CORS_ALLOW_HEADERS = (*default_headers, "x-session-id")
 
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",

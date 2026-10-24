@@ -34,6 +34,20 @@ class CatalogueApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "ok")
 
+    def test_cors_preflight_allows_session_header(self):
+        response = self.client.options(
+            "/api/art_works/",
+            HTTP_ORIGIN="http://localhost:5173",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS="x-session-id",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Access-Control-Allow-Origin"], "http://localhost:5173"
+        )
+        self.assertIn("x-session-id", response["Access-Control-Allow-Headers"])
+
     def test_artwork_list_is_paginated(self):
         response = self.client.get("/api/art_works/")
         self.assertEqual(response.status_code, 200)
