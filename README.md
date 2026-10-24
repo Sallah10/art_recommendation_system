@@ -162,9 +162,13 @@ art_recommendation_system/
 
 1. Set `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=0`, `DJANGO_ALLOWED_HOSTS`,
    `CORS_ALLOWED_ORIGINS` and `DATABASE_URL`.
-2. Run `./build.sh` (installs dependencies, collects static files, migrates,
-   seeds) or wire the commands into your platform's build step.
-3. Start with `gunicorn art_recommendation_system.wsgi`.
+2. On Render, use `bash build.sh` as the build command and
+   `gunicorn art_recommendation_system.wsgi:application --log-file -` as the
+   start command. `.python-version` pins the runtime to Python 3.12.12.
+   The build script installs dependencies, clears and collects static files,
+   migrates, and seeds the catalogue.
+3. On other platforms, run `./build.sh` or wire its commands into the build
+   step, then start with `gunicorn art_recommendation_system.wsgi:application`.
 4. Serve `/media` from object storage or a reverse proxy; Django only serves
    it in development. `seed_gallery` copies the demo images into `MEDIA_ROOT`,
    which is ephemeral on most platforms.
