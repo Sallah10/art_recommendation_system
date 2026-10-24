@@ -54,6 +54,20 @@ class CatalogueApiTests(APITestCase):
         self.assertIn("results", response.data)
         self.assertEqual(response.data["count"], 3)
 
+    def test_seeded_artwork_images_use_collected_static_assets(self):
+        for filename, expected_url in (
+            ("at_the_shore.jpg", "/static/img/at_the_shore.jpg"),
+            ("fgures in interior.jpg", "/static/img/fgures%20in%20interior.jpg"),
+        ):
+            with self.subTest(filename=filename):
+                self.shore.art_image = f"artworks/{filename}"
+                self.shore.save(update_fields=["art_image"])
+
+                response = self.client.get(f"/api/art_works/{self.shore.id}/")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.data["art_image"].endswith(expected_url))
+
     def test_filter_by_style_and_search(self):
         response = self.client.get("/api/art_works/?style=Portrait")
         self.assertEqual(response.data["count"], 1)

@@ -1,6 +1,22 @@
+from django.contrib.staticfiles import finders
+from django.contrib.staticfiles.storage import staticfiles_storage
 from rest_framework import serializers
 
 from .models import Art_Work, Collection, UserInteraction
+
+
+def artwork_image_url(image, request):
+    if not image:
+        return None
+
+    filename = image.name.rsplit("/", 1)[-1]
+    static_path = f"img/{filename}"
+    url = (
+        staticfiles_storage.url(static_path)
+        if finders.find(static_path)
+        else image.url
+    )
+    return request.build_absolute_uri(url) if request else url
 
 
 class ArtWorkSerializer(serializers.ModelSerializer):
@@ -34,11 +50,8 @@ class ArtWorkSerializer(serializers.ModelSerializer):
         )
 
     def get_art_image(self, obj):
-        if not obj.art_image:
-            return None
         request = self.context.get("request")
-        url = obj.art_image.url
-        return request.build_absolute_uri(url) if request else url
+        return artwork_image_url(obj.art_image, request)
 
     def _interaction(self, obj):
         return self.context.get("interactions", {}).get(obj.id, {})
@@ -76,17 +89,11 @@ class RecommendedArtWorkSerializer(serializers.Serializer):
             image = getattr(artwork, "art_image", None)
         else:
             image = getattr(obj, "art_image", None) or getattr(getattr(obj, "artwork", None), "art_image", None)
-        if image and hasattr(image, "url"):
-            request = self.context.get("request")
-            url = image.url
-            return request.build_absolute_uri(url) if request else url
         if isinstance(obj, dict) and obj.get("artwork"):
             artwork = obj["artwork"]
-            if artwork.art_image and hasattr(artwork.art_image, "url"):
-                request = self.context.get("request")
-                url = artwork.art_image.url
-                return request.build_absolute_uri(url) if request else url
-        return None
+            image = artwork.art_image
+        request = self.context.get("request")
+        return artwork_image_url(image, request)
 
     def _interaction(self, obj):
         interactions = self.context.get("interactions", {})
@@ -152,11 +159,10 @@ class CollectionSerializer(serializers.ModelSerializer):
 
     def get_cover(self, obj):
         artwork = next(iter(obj.artworks.all()), None)
-        if artwork is None or not artwork.art_image:
+        if artwork is None:
             return None
         request = self.context.get("request")
-        url = artwork.art_image.url
-        return request.build_absolute_uri(url) if request else url
+        return artwork_image_url(artwork.art_image, request)
 
     def get_tags(self, obj):
         tags = {}

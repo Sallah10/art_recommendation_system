@@ -169,9 +169,10 @@ art_recommendation_system/
    migrates, and seeds the catalogue.
 3. On other platforms, run `./build.sh` or wire its commands into the build
    step, then start with `gunicorn art_recommendation_system.wsgi:application`.
-4. Serve `/media` from object storage or a reverse proxy; Django only serves
-   it in development. `seed_gallery` copies the demo images into `MEDIA_ROOT`,
-   which is ephemeral on most platforms.
+4. Seeded catalogue artwork is served from the collected `/static/img/`
+   assets. Admin-uploaded files remain under `/media`; configure persistent
+   object storage for those files because Render's local filesystem is
+   ephemeral.
 
 ## Honest notes
 
